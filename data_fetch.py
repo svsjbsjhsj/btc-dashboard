@@ -59,18 +59,23 @@ def _get_with_fallback(url: str, params: dict) -> list:
     except requests.RequestException as e:
         last_error = str(e)
  
-    # المحاولة 3: عبر proxy عام (allorigins) - يفيد إذا كان سيرفر الاستضافة
-    # نفسه محظور جغرافياً (مثل GCP us-central1 اللي كيستعملها Streamlit Cloud)
-    try:
-        proxy_url = "https://api.allorigins.win/raw?url=" + requests.utils.quote(
-            full_url_with_params, safe=""
-        )
-        resp = requests.get(proxy_url, timeout=20)
-        if resp.status_code == 200:
-            return resp.json()
-        last_error = f"(proxy) HTTP {resp.status_code}: {resp.text[:200]}"
-    except requests.RequestException as e:
-        last_error = f"(proxy) {e}"
+    # المحاولة 3+: عبر عدة proxies عامة (fallback chain) - يفيد إذا كان
+    # سيرفر الاستضافة نفسه محظور جغرافياً (مثل GCP us-central1 اللي
+    # كيستعملها Streamlit Cloud)، أو إذا كان proxy واحد معطل مؤقتاً
+    proxy_builders = [
+        lambda u: "https://api.allorigins.win/raw?url=" + requests.utils.quote(u, safe=""),
+        lambda u: "https://corsproxy.io/?url=" + requests.utils.quote(u, safe=""),
+        lambda u: "https://thingproxy.freeboard.io/fetch/" + u,
+    ]
+    for build_proxy_url in proxy_builders:
+        try:
+            proxy_url = build_proxy_url(full_url_with_params)
+            resp = requests.get(proxy_url, timeout=20)
+            if resp.status_code == 200:
+                return resp.json()
+            last_error = f"(proxy) HTTP {resp.status_code}: {resp.text[:200]}"
+        except (requests.RequestException, ValueError) as e:
+            last_error = f"(proxy) {e}"
  
     raise DataFetchError(
         f"فشل جلب البيانات من {url}\n"
