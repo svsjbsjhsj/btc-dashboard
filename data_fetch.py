@@ -63,9 +63,8 @@ def _get_with_fallback(url: str, params: dict) -> list:
     # سيرفر الاستضافة نفسه محظور جغرافياً (مثل GCP us-central1 اللي
     # كيستعملها Streamlit Cloud)، أو إذا كان proxy واحد معطل مؤقتاً
     proxy_builders = [
+        lambda u: "https://api.codetabs.com/v1/proxy?quest=" + requests.utils.quote(u, safe=""),
         lambda u: "https://api.allorigins.win/raw?url=" + requests.utils.quote(u, safe=""),
-        lambda u: "https://corsproxy.io/?url=" + requests.utils.quote(u, safe=""),
-        lambda u: "https://thingproxy.freeboard.io/fetch/" + u,
     ]
     for build_proxy_url in proxy_builders:
         try:
